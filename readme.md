@@ -8,10 +8,10 @@ Copyright/Maintenance 2011 Anton Kraievoy akraievoy@gmail.com
 Ultralight and super-simpliistic CouchDB client library. 
 
 Dependencies: 
-  * jackson-core / jackson-mapper --- required, period
-  * google guava --- in-memory caching relies on that, may be removed with small loss of featureset
-  * google guava (oops, ahem) --- some streaming was also done with Guava, rewritable with bare J2SE, if needed
-  * slf4j, findbugs:jsr305 --- easily removable, but most typically you should have chosen them already ;)
+ * jackson-core / jackson-mapper --- required, period
+ * google guava --- in-memory caching relies on that, may be removed with small loss of featureset
+ * google guava (oops, ahem) --- some streaming was also done with Guava, rewritable with bare J2SE, if needed
+ * slf4j, findbugs:jsr305 --- easily removable, but most typically you should have chosen them already ;)
 
 ### Boring stuff
 
