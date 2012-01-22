@@ -1,5 +1,5 @@
 target
 .svn
-*.ipr
 *.iws
+.idea/workspace.xml
 
