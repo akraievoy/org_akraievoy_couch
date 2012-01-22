@@ -272,6 +272,7 @@ public abstract class Squab {
     }
 
     //  LATER document which fields are required/provided on PUT and GET
+    @JsonIgnoreProperties({"digest"})
     public static class CouchFile {
         private byte[] data;
         @JsonWriteNullProperties(false)
