@@ -26,10 +26,7 @@ import com.google.common.io.InputSupplier;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.SerializationConfig;
 
-import java.io.BufferedOutputStream;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -39,10 +36,18 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * CouchDB entity persistence.
+ *
+ * Please note that for optimal performance you have to override
+ * default CouchDB configuration.
+ *
+ * <pre><code>[httpd]
+ * socket_options = [{nodelay, true}]</code></pre>
+ *
+ * http://stackoverflow.com/questions/8992122/couchdb-mochiweb-negative-effect-of-persistent-connections
  */
+@SuppressWarnings("UnusedDeclaration")
 public class CouchDao {
     private final ObjectMapper mapper = new ObjectMapper();
-
     {
         mapper.getSerializationConfig().enable(SerializationConfig.Feature.INDENT_OUTPUT);
     }
@@ -133,6 +138,16 @@ public class CouchDao {
         return all.get(0);
     }
 
+    protected <S extends Squab> S findOne(final Class<S> squabClass, Squab.Path fullPath) {
+        final List<S> all = findAll(squabClass, fullPath);
+        if (all.isEmpty()) {
+            throw new IllegalStateException(
+                    "no records: '" + fullPath + "'"
+            );
+        }
+        return all.get(0);
+    }
+
     public InputSupplier<InputStream> file(final Squab squab, String fileName) {
         return couchFileGet(squab.getCouchPath(), fileName);
     }
@@ -162,6 +177,13 @@ public class CouchDao {
 
     public <S extends Squab> List<S> findAll(final Class<S> squabClass, String... path) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
+        return findAll(squabClass, fullPath);
+    }
+
+    protected <S extends Squab> List<S> findAll(
+            Class<S> squabClass,
+            Squab.Path fullPath
+    ) {
         final List<? extends Squab> allCached = cacheSquabs.get(fullPath);
         if (allCached != null) {
             //noinspection unchecked
@@ -265,12 +287,36 @@ public class CouchDao {
 
     //  Squab.Stamped
     public <S extends Squab.Stamped> S findLast(Class<S> squabClass, String... path) {
-        final SortedMap<Long, S> timeToSquab = findAllStamped(squabClass, path);
-        return timeToSquab.isEmpty() ? null : timeToSquab.get(timeToSquab.lastKey());
+        final Squab.Path fullPath = new Squab.Path(squabClass, path);
+        final List<Squab.Path> allPaths = findAllPaths(fullPath);
+
+        Squab.Path lastPath = null;
+        long lastStamp = 0;
+        for (Squab.Path somePath : allPaths) {
+            final long someStamp = Squab.Stamped.parse(somePath.getLast());
+            if (lastPath == null || someStamp >= lastStamp) {
+                lastPath = somePath;
+                lastStamp = someStamp;
+            }
+        }
+
+        return lastPath == null ? null : findOne(squabClass, fullPath);
     }
 
     public <S extends Squab.Stamped> S findByStamp(long stamp, Class<S> squabClass, String... path) {
-        return findAllStamped(squabClass, path).get(stamp);
+        final Squab.Path fullPath = new Squab.Path(squabClass, path);
+        final List<Squab.Path> allPaths = findAllPaths(fullPath);
+
+        Squab.Path stampPath = null;
+        for (Squab.Path somePath : allPaths) {
+            final long someStamp = Squab.Stamped.parse(somePath.getLast());
+            if (someStamp == stamp) {
+                stampPath = somePath;
+                break;
+            }
+        }
+
+        return stampPath == null ? null : findOne(squabClass, fullPath);
     }
 
     public <S extends Squab.Stamped> SortedMap<Long, S> findAllStamped(
@@ -362,10 +408,12 @@ public class CouchDao {
             connection.setDoInput(true);
             connection.setDoOutput(false);
 
-            final InputStream is = connection.getInputStream();
-            final S squab;
-            squab = mapper.readValue(is, squabClass);
-            is.close();
+            final BufferedReader reader =
+                    new BufferedReader(new InputStreamReader(
+                            connection.getInputStream(), Charsets.UTF_8
+                    ));
+            final S squab = mapper.readValue(reader, squabClass);
+            reader.close();
 
             return squab;
         } catch (IOException e) {

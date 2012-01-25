@@ -182,6 +182,10 @@ public abstract class Squab {
             return set(this.elems.length - 1, value);
         }
 
+        public String getLast() {
+            return elem(this.elems.length - 1);
+        }
+
         public String id() {
             final StringBuilder idBuilder = new StringBuilder();
             for (String pathElem : elems) {
@@ -268,6 +272,10 @@ public abstract class Squab {
             synchronized (Stamped.class) {
                 return lastStamp = Math.max(System.currentTimeMillis(), lastStamp + 1);
             }
+        }
+
+        public static long parse(String str) {
+            return Long.parseLong(str, 36);
         }
     }
 
