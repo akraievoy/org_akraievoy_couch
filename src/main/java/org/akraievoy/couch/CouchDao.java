@@ -53,7 +53,6 @@ public class CouchDao {
     }
 
     protected String couchUrl = "http://localhost:5984/";
-
     public void setCouchUrl(String couchUrl) {
         if (!couchUrl.endsWith("/")) {
             throw new IllegalArgumentException("couchUrl '" + couchUrl + "' must end with '/'");
@@ -62,33 +61,53 @@ public class CouchDao {
     }
 
     protected String dbName = "elw-data";
-
-    public void setDbName(String dbName) {
-        this.dbName = dbName;
-    }
+    public void setDbName(String dbName) { this.dbName = dbName; }
 
     protected String username = "supercow";
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
+    public void setPassword(String password) { this.password = password; }
 
     protected String password = "typical";
+    public void setUsername(String username) { this.username = username; }
 
-    public void setUsername(String username) {
-        this.username = username;
+    protected int concurrencyLevel = 3;
+    public void setConcurrencyLevel(int concurrencyLevel) {
+        this.concurrencyLevel = concurrencyLevel;
     }
 
-    private final MapMaker caches = new MapMaker().concurrencyLevel(3).expireAfterWrite(1L, TimeUnit.MINUTES);
-    private final ConcurrentMap<Squab.Path, List<Squab.Path>> cachePaths = caches.makeMap();
-    private final ConcurrentMap<Squab.Path, List<List<String>>> cacheAxes = caches.makeMap();
-    private final ConcurrentMap<Squab.Path, List<? extends Squab>> cacheSquabs = caches.makeMap();
-    private final ConcurrentMap<Squab.Path, SortedMap<Long, ? extends Squab.Stamped>> cacheStamped = caches.makeMap();
+    protected long cacheValidityMinutes = 1;
+    public void setCacheValidityMinutes(long cacheValidityMinutes) {
+        this.cacheValidityMinutes = cacheValidityMinutes;
+    }
+
+    private ConcurrentMap<Squab.Path, List<Squab.Path>> cachePaths;
+    private ConcurrentMap<Squab.Path, List<List<String>>> cacheAxes;
+    private ConcurrentMap<Squab.Path, List<? extends Squab>> cacheSquabs;
+    private ConcurrentMap<Squab.Path, SortedMap<Long, ? extends Squab.Stamped>> cacheStamped;
 
     private static final SortedMap<Long, ? extends Squab.Stamped> EMPTY_MAP =
             Collections.unmodifiableSortedMap(new TreeMap<Long, Squab.Stamped>());
 
-    public CouchDao() { /* nothing to do here */ }
+    public CouchDao() {
+        this(true);
+    }
+
+    public CouchDao(boolean autoStart) {
+        if (autoStart) {
+            start();
+        }
+    }
+
+    public void start() {
+        final MapMaker caches =
+            new MapMaker()
+                .concurrencyLevel(concurrencyLevel)
+                .expireAfterWrite(cacheValidityMinutes, TimeUnit.MINUTES);
+
+        cachePaths = caches.makeMap();
+        cacheAxes = caches.makeMap();
+        cacheSquabs = caches.makeMap();
+        cacheStamped = caches.makeMap();
+    }
 
     protected void invalidate(Squab.Path path) {
         invalidate_(path, cacheAxes.keySet());
