@@ -6,7 +6,7 @@
   <groupId>org.akraievoy</groupId>
   <artifactId>couch</artifactId>
   <name>org.akraievoy:couch</name>
-  <version>1.3.8</version>
+  <version>1.3.9</version>
 
   <repositories>
   </repositories>
