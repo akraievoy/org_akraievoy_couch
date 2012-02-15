@@ -109,15 +109,23 @@ public class CouchDao {
         cacheStamped = caches.makeMap();
     }
 
-    protected void invalidate(Squab.Path path) {
+    protected void invalidate(
+            final Squab.Path path
+    ) {
         invalidate_(path, cacheAxes.keySet());
         invalidate_(path, cachePaths.keySet());
         invalidate_(path, cacheSquabs.keySet());
         invalidate_(path, cacheStamped.keySet());
     }
 
-    protected void invalidate_(Squab.Path path, final Set<Squab.Path> paths) {
-        for (Iterator<Squab.Path> iterator = paths.iterator(); iterator.hasNext(); ) {
+    protected void invalidate_(
+            final Squab.Path path,
+            final Set<Squab.Path> paths
+    ) {
+        for (
+                Iterator<Squab.Path> iterator = paths.iterator();
+                iterator.hasNext();
+        ) {
             if (iterator.next().intersects(path)) {
                 iterator.remove();
             }
@@ -125,11 +133,16 @@ public class CouchDao {
     }
 
     //  Squab
-    public Long update(Squab squab) {
+    public Long update(
+            final Squab squab
+    ) {
         return update(squab, true);
     }
 
-    public Long update(Squab squab, final boolean updateStamp) {
+    public Long update(
+            final Squab squab,
+            final boolean updateStamp
+    ) {
         Long stamp = null;
         if (squab instanceof Squab.Stamped) {
             final Squab.Stamped stamped = (Squab.Stamped) squab;
@@ -147,7 +160,10 @@ public class CouchDao {
         return stamp;
     }
 
-    public <S extends Squab> S findOne(final Class<S> squabClass, String... path) {
+    public <S extends Squab> S findOne(
+            final Class<S> squabClass, 
+            final String... path
+    ) {
         final List<S> all = findAll(squabClass, path);
         if (all.isEmpty()) {
             throw new IllegalStateException(
@@ -157,7 +173,10 @@ public class CouchDao {
         return all.get(0);
     }
 
-    protected <S extends Squab> S findOne(final Class<S> squabClass, Squab.Path fullPath) {
+    protected <S extends Squab> S findOne(
+            final Class<S> squabClass, 
+            final Squab.Path fullPath
+    ) {
         final List<S> all = findAll(squabClass, fullPath);
         if (all.isEmpty()) {
             throw new IllegalStateException(
@@ -167,41 +186,61 @@ public class CouchDao {
         return all.get(0);
     }
 
-    public InputSupplier<InputStream> file(final Squab squab, String fileName) {
+    public InputSupplier<InputStream> file(
+            final Squab squab,
+            final String fileName
+    ) {
         return couchFileGet(squab.getCouchPath(), fileName);
     }
 
-    public byte[] fileBytes(final Squab squab, String fileName) throws IOException {
-        return ByteStreams.toByteArray(couchFileGet(squab.getCouchPath(), fileName));
+    public byte[] fileBytes(
+            final Squab squab,
+            final String fileName
+    ) throws IOException {
+        return ByteStreams.toByteArray(
+                couchFileGet(squab.getCouchPath(), fileName)
+        );
     }
 
-    public List<String> fileLines(final Squab squab, String fileName) throws IOException {
+    public List<String> fileLines(
+            final Squab squab,
+            final String fileName
+    ) throws IOException {
         return CharStreams.readLines(CharStreams.newReaderSupplier(
                 couchFileGet(squab.getCouchPath(), fileName),
                 Charsets.UTF_8
         ));
     }
 
-    public String fileText(final Squab squab, String fileName) throws IOException {
+    public String fileText(
+            final Squab squab,
+            final String fileName
+    ) throws IOException {
         return CharStreams.toString(CharStreams.newReaderSupplier(
                 couchFileGet(squab.getCouchPath(), fileName),
                 Charsets.UTF_8
         ));
     }
 
-    public <S extends Squab> S findSome(final Class<S> squabClass, String... path) {
+    public <S extends Squab> S findSome(
+            final Class<S> squabClass,
+            final String... path
+    ) {
         final List<S> all = findAll(squabClass, path);
         return all.isEmpty() ? null : all.get(0);
     }
 
-    public <S extends Squab> List<S> findAll(final Class<S> squabClass, String... path) {
+    public <S extends Squab> List<S> findAll(
+            final Class<S> squabClass,
+            final String... path
+    ) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
         return findAll(squabClass, fullPath);
     }
 
     protected <S extends Squab> List<S> findAll(
-            Class<S> squabClass,
-            Squab.Path fullPath
+            final Class<S> squabClass,
+            final Squab.Path fullPath
     ) {
         final List<? extends Squab> allCached = cacheSquabs.get(fullPath);
         if (allCached != null) {
@@ -221,7 +260,10 @@ public class CouchDao {
         return allRO;
     }
 
-    public <S extends Squab> List<List<String>> axes(final Class<S> squabClass, String... path) {
+    public <S extends Squab> List<List<String>> axes(
+            final Class<S> squabClass, 
+            final String... path
+    ) {
         return axes(new Squab.Path(squabClass, path));
     }
 
@@ -231,7 +273,9 @@ public class CouchDao {
      * @param fullPath criteria to inspect
      * @return all possible values for each criteria path position
      */
-    public List<List<String>> axes(final Squab.Path fullPath) {
+    public List<List<String>> axes(
+            final Squab.Path fullPath
+    ) {
         final List<List<String>> cachedAxes = cacheAxes.get(fullPath);
         if (cachedAxes != null) {
             return cachedAxes;
@@ -256,7 +300,9 @@ public class CouchDao {
 
         final List<List<String>> axes = new ArrayList<List<String>>(resultMap.size());
         for (int i = 0; i < resultMap.size(); i++) {
-            axes.add(Collections.unmodifiableList(new ArrayList<String>(resultMap.get(i))));
+            axes.add(Collections.unmodifiableList(
+                    new ArrayList<String>(resultMap.get(i))
+            ));
         }
 
         final List<List<String>> axesRO = Collections.unmodifiableList(axes);
@@ -265,18 +311,24 @@ public class CouchDao {
         return axesRO;
     }
 
-    public <S extends Squab> List<Squab.Path> findAllPaths(Class<S> squabClass, String... path) {
+    public <S extends Squab> List<Squab.Path> findAllPaths(
+            final Class<S> squabClass,
+            final String... path
+    ) {
         return findAllPaths(new Squab.Path(squabClass, path));
     }
 
-    public List<Squab.Path> findAllPaths(Squab.Path fullPath) {
+    public List<Squab.Path> findAllPaths(
+            final Squab.Path fullPath
+    ) {
         final List<Squab.Path> cachedIds = cachePaths.get(fullPath);
         if (cachedIds != null) {
             return cachedIds;
         }
 
         final Squab.RespViewList viewList = couchList(fullPath);
-        final List<Squab.Path> paths = new ArrayList<Squab.Path>(viewList.getRows().size());
+        final List<Squab.Path> paths =
+                new ArrayList<Squab.Path>(viewList.getRows().size());
         for (Squab.RespViewList.Row row : viewList.getRows()) {
             final Squab.Path rowPath = Squab.Path.fromId(row.getId());
             if (rowPath.len() < fullPath.len()) {
@@ -285,9 +337,14 @@ public class CouchDao {
             boolean afterWild = false;
             boolean matches = true;
             for (int i = 0; i < fullPath.len(); i++) {
-                //  path may have some wilds in the middle, so we have to filter even after couch range-query
+                //  path may have some wilds in the middle, so
+                //      we have to filter even after couch range-query
                 afterWild |= i > 0 && fullPath.elem(i - 1) == null;
-                if (afterWild && i < fullPath.len() && fullPath.elem(i) != null && !fullPath.elem(i).equals(rowPath.elem(i))) {
+                if (afterWild
+                        && i < fullPath.len()
+                        && fullPath.elem(i) != null
+                        && !fullPath.elem(i).equals(rowPath.elem(i))
+                ) {
                     matches = false;
                     break;
                 }
@@ -305,7 +362,10 @@ public class CouchDao {
     }
 
     //  Squab.Stamped
-    public <S extends Squab.Stamped> S findLast(Class<S> squabClass, String... path) {
+    public <S extends Squab.Stamped> S findLast(
+            final Class<S> squabClass,
+            final String... path
+    ) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
         final List<Squab.Path> allPaths = findAllPaths(fullPath);
 
@@ -322,7 +382,11 @@ public class CouchDao {
         return lastPath == null ? null : findOne(squabClass, fullPath);
     }
 
-    public <S extends Squab.Stamped> S findByStamp(long stamp, Class<S> squabClass, String... path) {
+    public <S extends Squab.Stamped> S findByStamp(
+            final long stamp,
+            final Class<S> squabClass,
+            final String... path
+    ) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
         final List<Squab.Path> allPaths = findAllPaths(fullPath);
 
@@ -339,9 +403,13 @@ public class CouchDao {
     }
 
     public <S extends Squab.Stamped> SortedMap<Long, S> findAllStamped(
-            Long sinceTime, Long untilTime, Class<S> squabClass, String... path
+            final Long sinceTime,
+            final Long untilTime,
+            final Class<S> squabClass,
+            final String... path
     ) {
-        final SortedMap<Long, S> stampToSquab = findAllStamped(squabClass, path);
+        final SortedMap<Long, S> stampToSquab =
+                findAllStamped(squabClass, path);
         if (sinceTime != null && untilTime != null) {
             return stampToSquab.subMap(sinceTime, untilTime);
         }
@@ -354,9 +422,13 @@ public class CouchDao {
         return stampToSquab;
     }
 
-    public <S extends Squab.Stamped> SortedMap<Long, S> findAllStamped(Class<S> squabClass, String... path) {
+    public <S extends Squab.Stamped> SortedMap<Long, S> findAllStamped(
+            final Class<S> squabClass,
+            final String... path
+    ) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
-        final SortedMap<Long, ? extends Squab.Stamped> stampedCached = cacheStamped.get(fullPath);
+        final SortedMap<Long, ? extends Squab.Stamped> stampedCached =
+                cacheStamped.get(fullPath);
         if (stampedCached != null) {
             //noinspection unchecked
             return (SortedMap<Long, S>) stampedCached;
@@ -371,13 +443,16 @@ public class CouchDao {
             timeToSquab = byStamp(squabs);
         }
 
-        final SortedMap<Long, S> timeToSquabRO = Collections.unmodifiableSortedMap(timeToSquab);
+        final SortedMap<Long, S> timeToSquabRO =
+                Collections.unmodifiableSortedMap(timeToSquab);
         cacheStamped.put(fullPath, timeToSquabRO);
 
         return timeToSquabRO;
     }
 
-    protected static <S extends Squab.Stamped> SortedMap<Long, S> byStamp(final Collection<S> squabs) {
+    protected static <S extends Squab.Stamped> SortedMap<Long, S> byStamp(
+            final Collection<S> squabs
+    ) {
         final SortedMap<Long, S> result = new TreeMap<Long, S>();
         for (S squab : squabs) {
             result.put(squab.getStamp(), squab);
@@ -392,8 +467,8 @@ public class CouchDao {
         try {
             url = new URL(couchUrl +
                     dbName + "/" + "_all_docs/?" +
-                    "startkey=\"" + URLEncoder.encode(path.rangeMin(), "UTF-8") + "\"&" +
-                    "endkey=\"" + URLEncoder.encode(path.rangeMax(), "UTF-8") + "\""
+                    "startkey=\"" + url(path.rangeMin()) + "\"&" +
+                    "endkey=\"" + url(path.rangeMax()) + "\""
             );
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
@@ -416,11 +491,22 @@ public class CouchDao {
         }
     }
 
-    protected <S extends Squab> S couchGet(Squab.Path path, final Class<S> squabClass) {
+    private static String url(final String urlElem) {
+        try {
+            return URLEncoder.encode(urlElem, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 not supported?!");
+        }
+    }
+
+    protected <S extends Squab> S couchGet(
+            final Squab.Path path,
+            final Class<S> squabClass
+    ) {
         URL url;
         HttpURLConnection connection = null;
         try {
-            url = new URL(couchUrl + dbName + "/" + URLEncoder.encode(path.id(), "UTF-8"));
+            url = new URL(couchUrl + dbName + "/" + url(path.id()));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setUseCaches(true);
@@ -444,19 +530,20 @@ public class CouchDao {
         }
     }
 
-    public InputSupplier<InputStream> couchFileGet(Squab.Path path, final String fileName) {
+    public InputSupplier<InputStream> couchFileGet(
+            final Squab.Path path,
+            final String fileName
+    ) {
         final URL url;
         try {
             url = new URL(
-                    couchUrl +
-                            dbName + "/" +
-                            URLEncoder.encode(path.id(), "UTF-8") + "/" +
-                            URLEncoder.encode(fileName, "UTF-8")
+                couchUrl + dbName + "/" + url(path.id()) + "/" + url(fileName)
             );
 
             return new InputSupplier<InputStream>() {
                 public InputStream getInput() throws IOException {
-                    final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    final HttpURLConnection connection =
+                            (HttpURLConnection) url.openConnection();
                     connection.setRequestMethod("GET");
                     connection.setUseCaches(true);
                     connection.setDoInput(true);
@@ -476,7 +563,10 @@ public class CouchDao {
         }
     }
 
-    protected void couchPut(String couchId, Squab squab) {
+    protected void couchPut(
+            final String couchId,
+            final Squab squab
+    ) {
         HttpURLConnection connection = null;
 
         URL url;
@@ -484,7 +574,7 @@ public class CouchDao {
             final String squabJSON = mapper.writeValueAsString(squab);
 
             //Create connection
-            url = new URL(couchUrl + dbName + "/" + URLEncoder.encode(couchId, "UTF-8"));
+            url = new URL(couchUrl + dbName + "/" + url(couchId));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("PUT");
             connection.setRequestProperty(
@@ -496,7 +586,9 @@ public class CouchDao {
                     Integer.toString(squabJSON.getBytes().length)
             );
             //  use Base64 codec bundled with Jackson: bytes -> "base64"
-            final String base64Str = mapper.writeValueAsString((username + ":" + password).getBytes());
+            final String base64Str = mapper.writeValueAsString(
+                    (username + ":" + password).getBytes()
+            );
             connection.addRequestProperty(
                     "Authorization",
                     //  drop first and last chars as those are JSON quotas
@@ -506,7 +598,9 @@ public class CouchDao {
             connection.setDoInput(true);
             connection.setDoOutput(true);
 
-            BufferedOutputStream bos = new BufferedOutputStream(connection.getOutputStream());
+            BufferedOutputStream bos = new BufferedOutputStream(
+                    connection.getOutputStream()
+            );
             bos.write(squabJSON.getBytes(Charsets.UTF_8));
             bos.flush();
             bos.close();
