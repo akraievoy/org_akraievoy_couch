@@ -20,9 +20,7 @@ package org.akraievoy.couch;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.MapMaker;
-import com.google.common.io.ByteStreams;
-import com.google.common.io.CharStreams;
-import com.google.common.io.InputSupplier;
+import com.google.common.io.*;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.SerializationConfig;
 
@@ -87,6 +85,7 @@ public class CouchDao {
     private static final SortedMap<Long, ? extends Squab.Stamped> EMPTY_MAP =
             Collections.unmodifiableSortedMap(new TreeMap<Long, Squab.Stamped>());
 
+    @Deprecated
     public CouchDao() {
         this(true);
     }
@@ -133,12 +132,54 @@ public class CouchDao {
     }
 
     //  Squab
+    public static class UpdateStatus {
+        public final String rev;
+        public final Long stamp;
+
+        public UpdateStatus(String rev, Long stamp) {
+            this.rev = rev;
+            this.stamp = stamp;
+        }
+    }
+
+    public UpdateStatus createOrUpdate(
+            final Squab squab
+    ) {
+        return createOrUpdate(squab, true);
+    }
+    
+    public UpdateStatus createOrUpdate(
+            final Squab squab,
+            final boolean updateStamp
+    ) {
+        try {
+            Long stamp = null;
+            if (squab instanceof Squab.Stamped) {
+                final Squab.Stamped stamped = (Squab.Stamped) squab;
+                if (!updateStamp && stamped.getStamp() != null) {
+                    stamp = stamped.getStamp();
+                } else {
+                    stamp = stamped.updateStamp();
+                }
+            }
+            final String couchRev = couchPut(
+                    squab.getCouchPath().id(),
+                    squab
+            );
+            return new UpdateStatus(couchRev, stamp);
+        } finally {
+            invalidate(squab.getCouchPath());
+        }
+    }
+
+    @Deprecated
     public Long update(
             final Squab squab
     ) {
         return update(squab, true);
     }
 
+    @Deprecated
     public Long update(
             final Squab squab,
             final boolean updateStamp
@@ -156,8 +197,44 @@ public class CouchDao {
                 squab.getCouchPath().id(),
                 squab
         );
+        //  LATER we should do these operations in finally block
         invalidate(squab.getCouchPath());
         return stamp;
+    }
+
+    /**
+     * Send attachments out of band of the main document update/create request
+     *     http://wiki.apache.org/couchdb/HTTP_Document_API#Standalone_Attachments
+     * More efficient than encoding byte stream within document JSON.
+     *
+     * @param squab to attach the stream to (only id/rev fields are used)
+     * @param fileName attachment fileName
+     * @param contentType content type of the attachment
+     * @param streamBytes containing the attachment bytes
+     *
+     * @return new revision of the main document
+     */
+    public String attachStream(
+            final Squab squab,
+            final String fileName,
+            final String contentType,
+            final InputSupplier<InputStream> streamBytes
+    ) {
+        final Squab.Path couchPath = squab.getCouchPath();
+
+        try {
+            final String newCouchRev = couchFilePut(
+                    couchPath.id(),
+                    squab.getCouchRev(),
+                    fileName,
+                    contentType,
+                    streamBytes
+            );
+
+            return newCouchRev;
+        } finally {
+            invalidate(couchPath);
+        }
     }
 
     public <S extends Squab> S findOne(
@@ -462,10 +539,9 @@ public class CouchDao {
 
     //  Couch HTTP
     protected Squab.RespViewList couchList(Squab.Path path) {
-        URL url;
         HttpURLConnection connection = null;
         try {
-            url = new URL(couchUrl +
+            URL url = new URL(couchUrl +
                     dbName + "/" + "_all_docs/?" +
                     "startkey=\"" + url(path.rangeMin()) + "\"&" +
                     "endkey=\"" + url(path.rangeMax()) + "\""
@@ -477,8 +553,8 @@ public class CouchDao {
             connection.setDoOutput(false);
 
             final InputStream is = connection.getInputStream();
-            final Squab.RespViewList list;
-            list = mapper.readValue(is, Squab.RespViewList.class);
+            final Squab.RespViewList list =
+                    mapper.readValue(is, Squab.RespViewList.class);
             is.close();
 
             return list;
@@ -503,10 +579,9 @@ public class CouchDao {
             final Squab.Path path,
             final Class<S> squabClass
     ) {
-        URL url;
         HttpURLConnection connection = null;
         try {
-            url = new URL(couchUrl + dbName + "/" + url(path.id()));
+            URL url = new URL(couchUrl + dbName + "/" + url(path.id()));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setUseCaches(true);
@@ -534,10 +609,9 @@ public class CouchDao {
             final Squab.Path path,
             final String fileName
     ) {
-        final URL url;
         try {
-            url = new URL(
-                couchUrl + dbName + "/" + url(path.id()) + "/" + url(fileName)
+            final URL url = new URL(
+                    couchUrl + dbName + "/" + url(path.id()) + "/" + url(fileName)
             );
 
             return new InputSupplier<InputStream>() {
@@ -563,18 +637,16 @@ public class CouchDao {
         }
     }
 
-    protected void couchPut(
+    protected String couchPut(
             final String couchId,
             final Squab squab
     ) {
         HttpURLConnection connection = null;
 
-        URL url;
         try {
             final String squabJSON = mapper.writeValueAsString(squab);
 
-            //Create connection
-            url = new URL(couchUrl + dbName + "/" + url(couchId));
+            URL url = new URL(couchUrl + dbName + "/" + url(couchId));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("PUT");
             connection.setRequestProperty(
@@ -585,15 +657,7 @@ public class CouchDao {
                     "Content-Length",
                     Integer.toString(squabJSON.getBytes().length)
             );
-            //  use Base64 codec bundled with Jackson: bytes -> "base64"
-            final String base64Str = mapper.writeValueAsString(
-                    (username + ":" + password).getBytes()
-            );
-            connection.addRequestProperty(
-                    "Authorization",
-                    //  drop first and last chars as those are JSON quotas
-                    "Basic " + base64Str.substring(1, base64Str.length() - 1)
-            );
+            storeAuth(connection);
             connection.setUseCaches(false);
             connection.setDoInput(true);
             connection.setDoOutput(true);
@@ -605,13 +669,7 @@ public class CouchDao {
             bos.flush();
             bos.close();
 
-            final InputStream is = connection.getInputStream();
-            final Squab.RespUpdate update =
-                    mapper.readValue(is, Squab.RespUpdate.class);
-            if (!update.isOk()) {
-                throw new IllegalStateException("PUT failed:" + update);
-            }
-            is.close();
+            return expectCouchOkResponse(connection);
         } catch (IOException e) {
             throw new IllegalStateException("PUT failed", e);
         } finally {
@@ -619,5 +677,98 @@ public class CouchDao {
                 connection.disconnect();
             }
         }
+    }
+
+    /**
+     * Send attachments out of band of the main document update
+     *     http://wiki.apache.org/couchdb/HTTP_Document_API#Standalone_Attachments
+     *
+     * @param couchId id of the main document
+     * @param couchRev revision of the main document
+     * @param fileName attachment fileName
+     * @param contentType content type of the attachment
+     * @param dataStream containing the attachment bytes
+     * @return new revision of the main document
+     */
+    protected String couchFilePut(
+            final String couchId,
+            final String couchRev,
+            final String fileName,
+            final String contentType,
+            final InputSupplier<InputStream> dataStream
+    ) {
+        HttpURLConnection connection = null;
+        try {
+            //Create connection
+            URL url = new URL(
+                    couchUrl + dbName + "/"
+                            + url(couchId) + "/" + url(fileName)
+                            + "?rev=" + url(couchRev)
+            );
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("PUT");
+            connection.setRequestProperty(
+                    "Content-Type",
+                    contentType
+            );
+            storeAuth(connection);
+
+            connection.setUseCaches(false);
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+
+            ByteStreams.copy(dataStream, connOutput(connection));
+
+            return expectCouchOkResponse(connection);
+        } catch (IOException e) {
+            throw new IllegalStateException("PUT failed", e);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    protected String expectCouchOkResponse(
+            final HttpURLConnection connection
+    ) throws IOException {
+        InputStream is = null;
+        try {
+            is = connection.getInputStream();
+            final Squab.RespUpdate update =
+                    mapper.readValue(is, Squab.RespUpdate.class);
+            if (!update.isOk()) {
+                throw new IllegalStateException("PUT failed:" + update);
+            }
+            return update.getRev();
+        } finally {
+            Closeables.closeQuietly(is);
+        }
+    }
+
+    protected static OutputSupplier<OutputStream> connOutput(
+            final HttpURLConnection connection
+    ) {
+        return new OutputSupplier<OutputStream>() {
+            public OutputStream getOutput() throws IOException {
+                return new BufferedOutputStream(
+                        connection.getOutputStream()
+                );
+            }
+        };
+    }
+
+    protected void storeAuth(
+            final HttpURLConnection connection
+    ) throws IOException {
+        //  use Base64 codec bundled with Jackson: bytes -> "base64"
+        final String base64Str = mapper.writeValueAsString(
+                (username + ":" + password).getBytes()
+        );
+        connection.addRequestProperty(
+                "Authorization",
+                //  drop first and last chars as those are JSON quotas
+                "Basic " + base64Str.substring(1, base64Str.length() - 1)
+        );
     }
 }
