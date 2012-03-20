@@ -456,7 +456,7 @@ public class CouchDao {
             }
         }
 
-        return lastPath == null ? null : findOne(squabClass, fullPath);
+        return lastPath == null ? null : findOne(squabClass, lastPath);
     }
 
     public <S extends Squab.Stamped> S findByStamp(
