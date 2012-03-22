@@ -19,7 +19,8 @@
 package org.akraievoy.couch;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.MapMaker;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.io.*;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.SerializationConfig;
@@ -29,7 +30,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -77,10 +77,10 @@ public class CouchDao {
         this.cacheValidityMinutes = cacheValidityMinutes;
     }
 
-    private ConcurrentMap<Squab.Path, List<Squab.Path>> cachePaths;
-    private ConcurrentMap<Squab.Path, List<List<String>>> cacheAxes;
-    private ConcurrentMap<Squab.Path, List<? extends Squab>> cacheSquabs;
-    private ConcurrentMap<Squab.Path, SortedMap<Long, ? extends Squab.Stamped>> cacheStamped;
+    private Cache<Squab.Path, List<Squab.Path>> cachePaths;
+    private Cache<Squab.Path, List<List<String>>> cacheAxes;
+    private Cache<Squab.Path, List<? extends Squab>> cacheSquabs;
+    private Cache<Squab.Path, SortedMap<Long, ? extends Squab.Stamped>> cacheStamped;
 
     private static final SortedMap<Long, ? extends Squab.Stamped> EMPTY_MAP =
             Collections.unmodifiableSortedMap(new TreeMap<Long, Squab.Stamped>());
@@ -97,24 +97,24 @@ public class CouchDao {
     }
 
     public void start() {
-        final MapMaker caches =
-            new MapMaker()
+        final CacheBuilder<Object, Object> caches =
+            CacheBuilder.newBuilder()
                 .concurrencyLevel(concurrencyLevel)
                 .expireAfterWrite(cacheValidityMinutes, TimeUnit.MINUTES);
 
-        cachePaths = caches.makeMap();
-        cacheAxes = caches.makeMap();
-        cacheSquabs = caches.makeMap();
-        cacheStamped = caches.makeMap();
+        cachePaths = caches.build();
+        cacheAxes = caches.build();
+        cacheSquabs = caches.build();
+        cacheStamped = caches.build();
     }
 
     protected void invalidate(
             final Squab.Path path
     ) {
-        invalidate_(path, cacheAxes.keySet());
-        invalidate_(path, cachePaths.keySet());
-        invalidate_(path, cacheSquabs.keySet());
-        invalidate_(path, cacheStamped.keySet());
+        invalidate_(path, cacheAxes.asMap().keySet());
+        invalidate_(path, cachePaths.asMap().keySet());
+        invalidate_(path, cacheSquabs.asMap().keySet());
+        invalidate_(path, cacheStamped.asMap().keySet());
     }
 
     protected void invalidate_(
@@ -179,7 +179,6 @@ public class CouchDao {
         return update(squab, true);
     }
 
-    @Deprecated
     public Long update(
             final Squab squab,
             final boolean updateStamp
@@ -319,7 +318,7 @@ public class CouchDao {
             final Class<S> squabClass,
             final Squab.Path fullPath
     ) {
-        final List<? extends Squab> allCached = cacheSquabs.get(fullPath);
+        final List<? extends Squab> allCached = cacheSquabs.getIfPresent(fullPath);
         if (allCached != null) {
             //noinspection unchecked
             return (List<S>) allCached;
@@ -353,7 +352,7 @@ public class CouchDao {
     public List<List<String>> axes(
             final Squab.Path fullPath
     ) {
-        final List<List<String>> cachedAxes = cacheAxes.get(fullPath);
+        final List<List<String>> cachedAxes = cacheAxes.getIfPresent(fullPath);
         if (cachedAxes != null) {
             return cachedAxes;
         }
@@ -398,7 +397,7 @@ public class CouchDao {
     public List<Squab.Path> findAllPaths(
             final Squab.Path fullPath
     ) {
-        final List<Squab.Path> cachedIds = cachePaths.get(fullPath);
+        final List<Squab.Path> cachedIds = cachePaths.getIfPresent(fullPath);
         if (cachedIds != null) {
             return cachedIds;
         }
@@ -505,7 +504,7 @@ public class CouchDao {
     ) {
         final Squab.Path fullPath = new Squab.Path(squabClass, path);
         final SortedMap<Long, ? extends Squab.Stamped> stampedCached =
-                cacheStamped.get(fullPath);
+                cacheStamped.getIfPresent(fullPath);
         if (stampedCached != null) {
             //noinspection unchecked
             return (SortedMap<Long, S>) stampedCached;
