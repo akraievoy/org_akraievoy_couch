@@ -1,6 +1,5 @@
 package org.akraievoy.couch;
 
-import com.google.common.io.ByteStreams;
 import com.google.common.io.InputSupplier;
 
 import java.io.ByteArrayInputStream;
@@ -16,10 +15,12 @@ import java.io.InputStream;
  */
 public class CouchDaoTest {
     public static void main(String[] args) {
-        final CouchDao couchDao = new CouchDao(false);
-        couchDao.setCouchUrl("http://127.0.0.1:5984/");
-        couchDao.setUsername("supercow");
-        couchDao.setPassword("******");
+        final CouchSetupBean couchSetup = new CouchSetupBean();
+        couchSetup.setCouchDbUrl("http://127.0.0.1:5984/");
+        couchSetup.setCouchDbUser("supercow");
+        couchSetup.setCouchDbPassword("******");
+
+        final CouchDao couchDao = new CouchDao(couchSetup);
         couchDao.setDbName("elw-user");
         couchDao.start();
 

@@ -50,22 +50,10 @@ public class CouchDao {
         mapper.getSerializationConfig().enable(SerializationConfig.Feature.INDENT_OUTPUT);
     }
 
-    protected String couchUrl = "http://localhost:5984/";
-    public void setCouchUrl(String couchUrl) {
-        if (!couchUrl.endsWith("/")) {
-            throw new IllegalArgumentException("couchUrl '" + couchUrl + "' must end with '/'");
-        }
-        this.couchUrl = couchUrl;
-    }
+    private final CouchSetup couchSetup;
 
     protected String dbName = "elw-data";
     public void setDbName(String dbName) { this.dbName = dbName; }
-
-    protected String username = "supercow";
-    public void setPassword(String password) { this.password = password; }
-
-    protected String password = "typical";
-    public void setUsername(String username) { this.username = username; }
 
     protected int concurrencyLevel = 3;
     public void setConcurrencyLevel(int concurrencyLevel) {
@@ -85,15 +73,8 @@ public class CouchDao {
     private static final SortedMap<Long, ? extends Squab.Stamped> EMPTY_MAP =
             Collections.unmodifiableSortedMap(new TreeMap<Long, Squab.Stamped>());
 
-    @Deprecated
-    public CouchDao() {
-        this(true);
-    }
-
-    public CouchDao(boolean autoStart) {
-        if (autoStart) {
-            start();
-        }
+    public CouchDao(final CouchSetup couchSetup) {
+        this.couchSetup = couchSetup;
     }
 
     public void start() {
@@ -540,8 +521,10 @@ public class CouchDao {
     protected Squab.RespViewList couchList(Squab.Path path) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(couchUrl +
-                    dbName + "/" + "_all_docs/?" +
+            URL url = new URL(
+                couchSetup.getCouchDbUrl() +
+                    dbNameDynamic() + "/" +
+                    "_all_docs/?" +
                     "startkey=\"" + url(path.rangeMin()) + "\"&" +
                     "endkey=\"" + url(path.rangeMax()) + "\""
             );
@@ -566,6 +549,19 @@ public class CouchDao {
         }
     }
 
+    protected String dbNameDynamic() {
+        final Map<String, String> dbNames = couchSetup.getCouchDbNames();
+        if (dbNames != null && dbNames.containsKey(dbName)) {
+            final String dbNameOverride = dbNames.get(dbName);
+
+            if (dbNameOverride != null && dbNameOverride.trim().length() > 0) {
+                return dbNameOverride;
+            }
+        }
+
+        return dbName;
+    }
+
     private static String url(final String urlElem) {
         try {
             return URLEncoder.encode(urlElem, "UTF-8");
@@ -580,7 +576,11 @@ public class CouchDao {
     ) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(couchUrl + dbName + "/" + url(path.id()));
+            URL url = new URL(
+                couchSetup.getCouchDbUrl() +
+                    dbNameDynamic() + "/" +
+                    url(path.id())
+            );
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setUseCaches(true);
@@ -610,7 +610,10 @@ public class CouchDao {
     ) {
         try {
             final URL url = new URL(
-                    couchUrl + dbName + "/" + url(path.id()) + "/" + url(fileName)
+                couchSetup.getCouchDbUrl() +
+                    dbNameDynamic() + "/" +
+                    url(path.id()) + "/" +
+                    url(fileName)
             );
 
             return new InputSupplier<InputStream>() {
@@ -645,7 +648,11 @@ public class CouchDao {
         try {
             final String squabJSON = mapper.writeValueAsString(squab);
 
-            URL url = new URL(couchUrl + dbName + "/" + url(couchId));
+            URL url = new URL(
+                couchSetup.getCouchDbUrl() +
+                    dbNameDynamic() + "/" +
+                    url(couchId)
+            );
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("PUT");
             connection.setRequestProperty(
@@ -700,9 +707,10 @@ public class CouchDao {
         try {
             //Create connection
             URL url = new URL(
-                    couchUrl + dbName + "/"
-                            + url(couchId) + "/" + url(fileName)
-                            + "?rev=" + url(couchRev)
+                couchSetup.getCouchDbUrl() +
+                    dbNameDynamic() + "/" +
+                    url(couchId) + "/" +
+                    url(fileName) + "?rev=" + url(couchRev)
             );
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("PUT");
@@ -761,9 +769,11 @@ public class CouchDao {
             final HttpURLConnection connection
     ) throws IOException {
         //  use Base64 codec bundled with Jackson: bytes -> "base64"
-        final String base64Str = mapper.writeValueAsString(
-                (username + ":" + password).getBytes()
-        );
+        final String authStr =
+            couchSetup.getCouchDbUser() + ":" + couchSetup.getCouchDbPassword();
+
+        final String base64Str = mapper.writeValueAsString(authStr.getBytes());
+
         connection.addRequestProperty(
                 "Authorization",
                 //  drop first and last chars as those are JSON quotas
