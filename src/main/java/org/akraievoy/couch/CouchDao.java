@@ -77,6 +77,17 @@ public class CouchDao {
         this.couchSetup = couchSetup;
     }
 
+    public void invalidateCaches() {
+        cachePaths.invalidateAll();
+        cachePaths.cleanUp();
+        cacheAxes.invalidateAll();
+        cacheAxes.cleanUp();
+        cacheSquabs.invalidateAll();
+        cacheSquabs.cleanUp();
+        cacheStamped.invalidateAll();
+        cacheStamped.cleanUp();
+    }
+
     public void start() {
         final CacheBuilder<Object, Object> caches =
             CacheBuilder.newBuilder()
